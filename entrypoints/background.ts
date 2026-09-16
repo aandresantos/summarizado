@@ -1,9 +1,111 @@
+import type { CaptureResult } from "../lib/capture/types";
+import { isCaptureRequestMessage } from "../lib/capture/messages";
+
+const createErrorResult = (
+  error: CaptureResult["error"],
+  url = "",
+  contentType = "",
+): CaptureResult => ({
+  status: "error",
+  html: null,
+  warnings: [],
+  error,
+  meta: {
+    url,
+    contentType,
+    capturedAt: new Date().toISOString(),
+  },
+});
+
+const isRestrictedUrl = (url: string): boolean => {
+  return (
+    url.startsWith("chrome://") ||
+    url.startsWith("chrome-extension://") ||
+    url.startsWith("edge://") ||
+    url.startsWith("about:") ||
+    url.startsWith("devtools://") ||
+    url.startsWith("https://chrome.google.com/webstore") ||
+    url.startsWith("https://chromewebstore.google.com")
+  );
+};
+
+const captureActivePage = async (): Promise<CaptureResult> => {
+  const [activeTab] = await browser.tabs.query({
+    active: true,
+    currentWindow: true,
+  });
+
+  if (activeTab?.id === undefined) {
+    return createErrorResult({ type: "no-active-tab" });
+  }
+
+  if (activeTab.url !== undefined && isRestrictedUrl(activeTab.url)) {
+    return createErrorResult({ type: "restricted-page" }, activeTab.url);
+  }
+
+  try {
+    const [injectionResult] = await browser.scripting.executeScript({
+      target: { tabId: activeTab.id },
+      func: (): CaptureResult => {
+        const contentType = document.contentType;
+        const meta = {
+          url: window.location.href,
+          contentType,
+          capturedAt: new Date().toISOString(),
+        };
+
+        if (contentType !== "text/html") {
+          return {
+            status: "error",
+            html: null,
+            warnings: [],
+            error: {
+              type: "unsupported-document-type",
+              detail: contentType,
+            },
+            meta,
+          };
+        }
+
+        return {
+          status: "success",
+          html: document.documentElement.outerHTML,
+          warnings: [],
+          error: null,
+          meta,
+        };
+      },
+    });
+
+    if (injectionResult?.result === undefined) {
+      return createErrorResult({ type: "serialization-failed", detail: "" });
+    }
+
+    return injectionResult.result;
+  } catch (error: unknown) {
+    const detail = error instanceof Error ? error.message : "Unknown error";
+
+    return createErrorResult(
+      { type: "serialization-failed", detail },
+      activeTab.url,
+    );
+  }
+};
+
 export default defineBackground(() => {
-  chrome.action.onClicked.addListener(async (tab) => {
+  browser.action.onClicked.addListener(async (tab) => {
     if (!tab.id) return;
 
-    await chrome.sidePanel.open({
+    await browser.sidePanel.open({
       tabId: tab.id,
     });
+  });
+
+  browser.runtime.onMessage.addListener((message: unknown) => {
+    if (!isCaptureRequestMessage(message)) {
+      return;
+    }
+
+    return captureActivePage();
   });
 });
