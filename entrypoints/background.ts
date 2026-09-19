@@ -1,5 +1,6 @@
 import type { CaptureResult } from "../lib/capture/types";
 import { isCaptureRequestMessage } from "../lib/capture/messages";
+import { createSidepanelNavigationController } from "../lib/sidepanel/navigation-controller";
 
 const createErrorResult = (
   error: CaptureResult["error"],
@@ -93,12 +94,42 @@ const captureActivePage = async (): Promise<CaptureResult> => {
 };
 
 export default defineBackground(() => {
+  const sidepanelNavigationController = createSidepanelNavigationController({
+    openPanel: async (tabId) => {
+      await browser.sidePanel.setOptions({
+        tabId,
+        path: "sidepanel/index.html",
+        enabled: true,
+      });
+
+      await browser.sidePanel.open({
+        tabId,
+      });
+    },
+    closePanel:
+      browser.sidePanel.close === undefined
+        ? undefined
+        : async (tabId) => {
+            await browser.sidePanel.close({
+              tabId,
+            });
+          },
+    disablePanel: async (tabId) => {
+      await browser.sidePanel.setOptions({
+        tabId,
+        enabled: false,
+      });
+    },
+  });
+
   browser.action.onClicked.addListener(async (tab) => {
     if (!tab.id) return;
 
-    await browser.sidePanel.open({
-      tabId: tab.id,
-    });
+    await sidepanelNavigationController.openForTab(tab.id);
+  });
+
+  browser.tabs.onUpdated.addListener((tabId, changeInfo) => {
+    void sidepanelNavigationController.handleTabUpdated(tabId, changeInfo);
   });
 
   browser.runtime.onMessage.addListener((message: unknown) => {
