@@ -6,8 +6,8 @@
 ## 1. Objetivo
 
 Quando o sidepanel da extensao estiver aberto para uma aba e essa aba navegar
-para outra pagina, fechar ou desabilitar automaticamente o sidepanel para evitar
-uma tentativa de captura com a permissao temporaria `activeTab` ja revogada.
+para outra pagina, desabilitar automaticamente o sidepanel para evitar uma
+tentativa de captura com a permissao temporaria `activeTab` ja revogada.
 
 ## 2. Contexto
 
@@ -24,9 +24,8 @@ Como o sidepanel permanece aberto entre navegacoes, o usuario pode clicar em
 - Ao clicar no icone da extensao, o background abre o sidepanel para a aba
   clicada e registra essa aba como a aba associada ao sidepanel.
 - Se a aba associada ao sidepanel iniciar uma navegacao (`tabs.onUpdated` com
-  `status: "loading"`), o background deve fechar ou desabilitar o sidepanel para
-  essa aba.
-- Depois de fechar/desabilitar o sidepanel por navegacao, a aba deixa de ser
+  `status: "loading"`), o background deve desabilitar o sidepanel para essa aba.
+- Depois de desabilitar o sidepanel por navegacao, a aba deixa de ser
   considerada associada ao sidepanel.
 - Navegacoes em outras abas nao devem fechar/desabilitar o sidepanel da aba
   associada.
@@ -41,21 +40,20 @@ Como o sidepanel permanece aberto entre navegacoes, o usuario pode clicar em
 - Preferir uma abstracao testavel para a decisao de fechar/desabilitar o
   sidepanel, evitando testar diretamente APIs globais do browser quando a logica
   puder ser isolada.
-- A acao de fechamento deve usar API do sidepanel disponivel no ambiente alvo:
-  - se `browser.sidePanel.close` estiver disponivel, fechar a aba especifica;
-  - caso contrario, desabilitar o sidepanel da aba com
-    `browser.sidePanel.setOptions({ tabId, enabled: false })`.
+- A acao de fechamento visual deve desabilitar o sidepanel da aba com
+  `browser.sidePanel.setOptions({ tabId, enabled: false })`.
+- Erros assincronos ao abrir ou desabilitar o sidepanel devem ser capturados no
+  background para evitar rejeicoes nao tratadas.
 
 ## 5. Plano de testes
 
 - Abrir o sidepanel registra a aba associada.
-- `tabs.onUpdated` com a mesma aba e `status: "loading"` solicita o fechamento
-  ou desabilitacao do sidepanel.
-- Apos fechar/desabilitar por navegacao, uma segunda atualizacao da mesma aba
-  nao deve tentar fechar/desabilitar novamente.
-- `tabs.onUpdated` de outra aba nao deve fechar/desabilitar o sidepanel.
-- `tabs.onUpdated` com `status: "complete"` nao deve fechar/desabilitar o
-  sidepanel.
+- `tabs.onUpdated` com a mesma aba e `status: "loading"` solicita a
+  desabilitacao do sidepanel.
+- Apos desabilitar por navegacao, uma segunda atualizacao da mesma aba nao deve
+  tentar desabilitar novamente.
+- `tabs.onUpdated` de outra aba nao deve desabilitar o sidepanel.
+- `tabs.onUpdated` com `status: "complete"` nao deve desabilitar o sidepanel.
 
 ## 6. Fora de escopo
 

@@ -96,24 +96,18 @@ const captureActivePage = async (): Promise<CaptureResult> => {
 export default defineBackground(() => {
   const sidepanelNavigationController = createSidepanelNavigationController({
     openPanel: async (tabId) => {
-      await browser.sidePanel.setOptions({
+      const setOptionsPromise = browser.sidePanel.setOptions({
         tabId,
-        path: "sidepanel/index.html",
+        path: "sidepanel.html",
         enabled: true,
       });
-
-      await browser.sidePanel.open({
+      const openPromise = browser.sidePanel.open({
         tabId,
       });
+
+      await setOptionsPromise;
+      await openPromise;
     },
-    closePanel:
-      browser.sidePanel.close === undefined
-        ? undefined
-        : async (tabId) => {
-            await browser.sidePanel.close({
-              tabId,
-            });
-          },
     disablePanel: async (tabId) => {
       await browser.sidePanel.setOptions({
         tabId,
@@ -123,13 +117,21 @@ export default defineBackground(() => {
   });
 
   browser.action.onClicked.addListener(async (tab) => {
-    if (!tab.id) return;
+    if (!tab?.id) return;
 
-    await sidepanelNavigationController.openForTab(tab.id);
+    try {
+      await sidepanelNavigationController.openForTab(tab.id);
+    } catch (error: unknown) {
+      console.error("Failed to open sidepanel", error);
+    }
   });
 
   browser.tabs.onUpdated.addListener((tabId, changeInfo) => {
-    void sidepanelNavigationController.handleTabUpdated(tabId, changeInfo);
+    void sidepanelNavigationController
+      .handleTabUpdated(tabId, changeInfo)
+      .catch((error: unknown) => {
+        console.error("Failed to disable sidepanel after navigation", error);
+      });
   });
 
   browser.runtime.onMessage.addListener((message: unknown) => {
